@@ -1,0 +1,63 @@
+name: Update gist with WakaTime summary
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '40 21 * * *'
+
+env:
+  TZ: Asia/Shanghai # 时区
+
+jobs:
+  update-gist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+      
+      - name: Set Timezone
+        run: |
+          timedatectl | grep 'Time zone'
+          sudo timedatectl set-timezone "$TZ"
+          timedatectl | grep 'Time zone'
+      
+      - name: Set env
+        run: sudo apt install jq -y
+
+      - name: Checkout branch
+        uses: actions/checkout@master
+        with:
+          ref: gh-page
+
+      - name: Update gist
+        env:
+          WAKATIME_API_KEY: ${{ secrets.WAKATIME_API_KEY }}
+        run: |
+          date=$(date -d "1 day ago" +"%Y-%m-%d")
+          filename="summaries_${date}.json"
+          curl "https://wakatime.com/api/v1/users/current/summaries?api_key=${WAKATIME_API_KEY}&start=${date}&end=${date}" | jq ".data" > ${filename}
+          echo -e "\n${filename}" >> index.md
+          git branch
+          ls
+          
+          
+      - name: Commit files
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add .
+          git commit -m "Add changes"
+
+      - name: GitHub Push
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.WAKATIME }}
+          branch: gh-page
+          force: true
+    
+      - name: Delete workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          retain_days: 7
+          keep_minimum_runs: 0
